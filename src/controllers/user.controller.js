@@ -9,17 +9,18 @@ import mongoose from "mongoose";
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
         const user = await User.findById(userId);
-        const accessToken = user.generateAccessToken();
-        const refreshToken = user.generateRefreshToken();
+        const accessToken = await user.generateAccessToken();
+        const refreshToken = await user.generateRefreshToken();
 
         user.refreshToken = refreshToken;
 
         await user.save({ validateBeforeSave: false });
         return { accessToken, refreshToken };
     } catch (error) {
+        console.log("error", error);
         throw new ApiError(
             500,
-            "Something went wrong while genreating refresh and access token"
+            "Something went wrong while generating refresh and access token"
         );
     }
 };
@@ -57,6 +58,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // console.log(req.files)
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
+    console.log("avatarLocalPath", avatarLocalPath);
 
     // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
@@ -90,14 +92,14 @@ const registerUser = asyncHandler(async (req, res) => {
         username: username.toLowerCase(),
     });
 
-    const createdUser = User.findById(user._id).select(
+    const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     );
 
     if (!createdUser) {
         throw new ApiError(
             500,
-            "Spmething went wrong while registering the user "
+            "Something went wrong while registering the user "
         );
     }
     const cleanUser = {
@@ -120,6 +122,7 @@ const loginUser = asyncHandler(async (req, res) => {
     //  return into cookies (secuire)
 
     const { username, email, password } = req.body;
+    console.log(req.body);
     if (!username && !email) {
         throw new ApiError(400, "username or email is required");
     }
@@ -248,6 +251,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
+    console.log(req.body);
     const user = await User.findById(req.user?._id);
     const isPassswordCorrect = await user.isPasswordCorrect(oldPassword);
 
@@ -268,7 +272,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
         .status(200)
         .json(
             new ApiResponse(200, req.user, "Current user fetched successfully")
-        )();
+        );
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
@@ -376,17 +380,16 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         {
             $addFields: {
                 subscribersCount: {
-                    $size: "$subscriber",
+                    $size: { $ifNull: ["$subscriber", []] },
                 },
                 channelsSubscribedToCount: {
-                    $size: "$SubscribedTo",
+                    $size: { $ifNull: ["$SubscribedTo", []] },
                 },
-                isSubscribe: {
-                    $cond: {
-                        if: { $sin: [req.user?._id, "subscriber.subscriber"] },
-                        then: true,
-                        else: false,
-                    },
+                isSubscribed: {
+                    $in: [
+                        req.user?._id,
+                        { $ifNull: ["$subscriber.subscriber", []] },
+                    ],
                 },
             },
         },
