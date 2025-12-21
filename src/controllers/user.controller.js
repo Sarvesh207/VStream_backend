@@ -17,7 +17,6 @@ const generateAccessAndRefreshTokens = async (userId) => {
         await user.save({ validateBeforeSave: false });
         return { accessToken, refreshToken };
     } catch (error) {
-        console.log("error", error);
         throw new ApiError(
             500,
             "Something went wrong while generating refresh and access token"
@@ -58,7 +57,6 @@ const registerUser = asyncHandler(async (req, res) => {
     // console.log(req.files)
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    console.log("avatarLocalPath", avatarLocalPath);
 
     // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
@@ -122,7 +120,6 @@ const loginUser = asyncHandler(async (req, res) => {
     //  return into cookies (secuire)
 
     const { username, email, password } = req.body;
-    console.log(req.body);
     if (!username && !email) {
         throw new ApiError(400, "username or email is required");
     }
@@ -146,7 +143,6 @@ const loginUser = asyncHandler(async (req, res) => {
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
         user._id
     );
-    console.log("refreshToekn :", refreshToken);
 
     const loggedInUser = await User.findById(user._id).select(
         "-password -refreshToken"
@@ -175,7 +171,6 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-    console.log(req.user);
     const user = await User.findByIdAndUpdate(
         req.user._id,
         {
@@ -188,7 +183,6 @@ const logoutUser = asyncHandler(async (req, res) => {
         }
     );
 
-    console.log(user._id, user.refreshToken, user.accessToken);
     const options = {
         httpOnly: true,
         secure: true,
@@ -251,7 +245,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
-    console.log(req.body);
     const user = await User.findById(req.user?._id);
     const isPassswordCorrect = await user.isPasswordCorrect(oldPassword);
 
