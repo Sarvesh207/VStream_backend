@@ -54,7 +54,6 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(409, "User already exists");
     }
 
-    // console.log(req.files)
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
 
@@ -83,7 +82,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const user = await User.create({
         fullName,
-        avatar: avatar.url,
+        avatar: avatar.url || "",
         coverImage: coverImage?.url || "",
         email,
         password,
@@ -92,6 +91,10 @@ const registerUser = asyncHandler(async (req, res) => {
 
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
+    );
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+        user._id
     );
 
     if (!createdUser) {
@@ -106,8 +109,15 @@ const registerUser = asyncHandler(async (req, res) => {
         email: createdUser.email,
     };
 
+    const options = {
+        httpOnly: true,
+        secure: true,
+    };
+
     return res
         .status(201)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
         .json(new ApiResponse(200, cleanUser, "User registered successfully"));
 });
 
@@ -209,7 +219,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             process.env.REFRESH_TOKEN_SECRET
         );
 
-        const user = User.findById(decodedToken?._id);
+        const user = await User.findById(decodedToken?._id);
 
         if (!user) {
             throw new ApiError(401, "Invalid refresh token");
@@ -269,7 +279,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-    const { fullName, email } = req.body;
+    const { fullName, email, username, description } = req.body;
     if (!fullName && !email) {
         throw new ApiError(400, "All fields are required");
     }
@@ -280,6 +290,8 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
             $set: {
                 fullName,
                 email,
+                username,
+                description,
             },
         },
         { new: true }
@@ -313,7 +325,13 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new ApiResponse(200, user, "Avatar updated successfully"));
+        .json(
+            new ApiResponse(
+                200,
+                { avatar: avatar.url },
+                "Avatar updated successfully"
+            )
+        );
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -331,15 +349,21 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         req.user?._id,
         {
             $set: {
-                avatar: coverImage.url,
+                coverImage: coverImage.url,
             },
         },
         { user: true }
     ).select("-password");
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, user, "coverImage updated successfully"));
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                coverImage: coverImage.url,
+            },
+            "coverImage updated successfully"
+        )
+    );
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
