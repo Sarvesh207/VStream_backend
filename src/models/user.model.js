@@ -26,11 +26,27 @@ const usersSchema = new Schema(
             index: true,
         },
         avatar: {
-            type: String, // cloudinary url
-            required: true,
+            url: {
+                type: String,
+                default:
+                    "https://res.cloudinary.com/dliuckrho/image/upload/v1766847157/default-monkey-avatar_b8xtae.jpg",
+            },
+            public_id: {
+                type: String,
+                default: null, // IMPORTANT
+            },
         },
+
         coverImage: {
-            type: String, // // cloudinary url
+            url: {
+                type: String,
+                default:
+                    "https://res.cloudinary.com/dliuckrho/image/upload/v1766847564/default_cover_image_r55qhh.jpg",
+            },
+            public_id: {
+                type: String,
+                default: null,
+            },
         },
         watchHistory: [
             {
