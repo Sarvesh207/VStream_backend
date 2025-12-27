@@ -263,14 +263,14 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar file is missing");
     }
 
-    const avatar = await uploadOnCloudinary({
+    const uploadedAvatar = await uploadOnCloudinary({
         localFilePath: avatarLocalPath,
         folder: "vstream/users/avatars",
         publicId: `user_${req.user._id}`,
         overwrite: true,
     });
 
-    if (!avatar) {
+    if (!uploadedAvatar) {
         throw new ApiError(400, "Error while uploading on avatar");
     }
 
@@ -278,21 +278,26 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         req.user?._id,
         {
             $set: {
-                avatar: avatar.url,
+                avatar: {
+                    url: uploadedAvatar.secure_url || uploadedAvatar.url,
+                    public_id: uploadedAvatar.public_id,
+                },
             },
         },
-        { user: true }
+        { new: true }
     ).select("-password");
 
-    return res
-        .status(200)
-        .json(
-            new ApiResponse(
-                200,
-                { avatar: avatar.url },
-                "Avatar updated successfully"
-            )
-        );
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                avatar: {
+                    url: uploadedAvatar?.url || uploadedAvatar?.secure_url,
+                },
+            },
+            "Avatar updated successfully"
+        )
+    );
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -301,13 +306,13 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "CoverImage file is missing");
     }
 
-    const coverImage = await uploadOnCloudinary({
+    const uploadedCoverImage = await uploadOnCloudinary({
         localFilePath: coverImageLocalPath,
         folder: "vstream/users/avatars",
         publicId: `user_${req.user._id}`,
         overwrite: true,
     });
-    if (!coverImage) {
+    if (!uploadedCoverImage) {
         throw new ApiError(400, "Error while uploading on coverImage");
     }
 
@@ -315,17 +320,24 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         req.user?._id,
         {
             $set: {
-                coverImage: coverImage.url,
+                coverImage: {
+                    url:
+                        uploadedCoverImage.secure_url || uploadedCoverImage.url,
+                    public_id: uploadedCoverImage.public_id,
+                },
             },
         },
-        { user: true }
+        { new: true }
     ).select("-password");
 
     return res.status(200).json(
         new ApiResponse(
             200,
             {
-                coverImage: coverImage.url,
+                coverImage: {
+                    url:
+                        uploadedCoverImage.url || uploadedCoverImage.secure_url,
+                },
             },
             "coverImage updated successfully"
         )
