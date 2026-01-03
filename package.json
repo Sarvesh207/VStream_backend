@@ -1,5 +1,5 @@
 {
-  "name": "vidio",
+  "name": "VStream",
   "version": "1.0.0",
   "description": "a backend of video playing app",
   "type": "module",
@@ -19,6 +19,7 @@
     "prettier": "^3.1.0"
   },
   "dependencies": {
+    "@imagekit/nodejs": "^7.1.1",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.6",

@@ -5,11 +5,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-
-// const getAllVideos = asyncHandler(async (req, res) => {
-//     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-//     //TODO: get all videos based on query, sort, pagination
-// });
+import { v2 as cloudinary } from "cloudinary";
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const {
@@ -74,50 +70,129 @@ const getAllVideos = asyncHandler(async (req, res) => {
     );
 });
 
-const publishAVideo = asyncHandler(async (req, res) => {
+// const publishVideo = asyncHandler(async (req, res) => {
+//     const { title, description } = req.body;
+
+//     if (!title || !description) {
+//         throw new ApiError(400, "Please fill the title and description");
+//     }
+
+//     const videoLocalPath = req.files?.videoFile?.[0]?.path;
+//     const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
+
+//     if (!videoLocalPath || !thumbnailLocalPath) {
+//         throw new ApiError(400, "Please upload both video and thumbnail");
+//     }
+
+//     //  Create DB record FIRST
+//     const video = await Video.create({
+//         title,
+//         description,
+//         owner: req.user._id,
+//     });
+
+//     let uploadedVideo;
+//     let uploadedThumb;
+
+//     try {
+//
+//         uploadedVideo = await uploadOnCloudinary({
+//             localFilePath: videoLocalPath,
+//             folder: "vstream/videos",
+//             publicId: `video_${video._id}`,
+//             resourceType: "video",
+//         });
+
+//
+//         uploadedThumb = await uploadOnCloudinary({
+//             localFilePath: thumbnailLocalPath,
+//             folder: "vstream/thumbnails",
+//             publicId: `video_${video._id}`,
+//         });
+
+//         if (!uploadedVideo || !uploadedThumb) {
+//             throw new Error("Cloudinary upload failed");
+//         }
+
+//
+//         const hlsUrl = cloudinary.url(uploadedVideo.public_id, {
+//             resource_type: "video",
+//             streaming_profile: "auto", // sp_auto
+//             format: "m3u8",
+//         });
+
+//
+//         video.videoFile = {
+//             url: hlsUrl,
+//             public_id: uploadedVideo.public_id,
+//         };
+
+//         video.thumbnail = {
+//             url: uploadedThumb.url,
+//             public_id: uploadedThumb.public_id,
+//         };
+
+//         await video.save();
+
+//         return res
+//             .status(201)
+//             .json(new ApiResponse(201, video, "Video published successfully"));
+//     } catch (error) {
+//
+//         await Video.findByIdAndDelete(video._id);
+
+//         if (uploadedVideo?.public_id) {
+//             await cloudinary.uploader.destroy(uploadedVideo.public_id, {
+//                 resource_type: "video",
+//             });
+//         }
+
+//         if (uploadedThumb?.public_id) {
+//             await cloudinary.uploader.destroy(uploadedThumb.public_id);
+//         }
+
+//         throw new ApiError(500, "Video upload failed. Please try again.");
+//     }
+// });
+
+const publishVideo = asyncHandler(async (req, res) => {
+    // 1️⃣ Get title and description from body
     const { title, description } = req.body;
-    // TODO: get video, upload to cloudinary, create video
     if (!title || !description) {
         throw new ApiError(400, "Please fill the title and description");
     }
+    // 2️⃣ Parse video and thumbnail data (sent as JSON strings from frontend)
+    let videoData, thumbnailData;
 
-    // get video file and video thumbnail
-
-    let videoLocalPath = req.files?.videoFile?.[0]?.path;
-    let thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
-    console.log(req.body, req.files);
-
-    if (!videoLocalPath || !thumbnailLocalPath) {
-        throw new ApiError(400, "Please upload both video and thumbnail");
+    try {
+        videoData = JSON.parse(req.body.videoFile);
+        thumbnailData = JSON.parse(req.body.thumbnail);
+    } catch (error) {
+        throw new ApiError(400, "Invalid video or thumbnail data format");
     }
-
-    const videoUpload = await uploadOnCloudinary(videoLocalPath);
-    const thumbnailUpload = await uploadOnCloudinary(thumbnailLocalPath);
-    console.log(videoUpload, thumbnailUpload);
-
-    if (!videoUpload && !thumbnailUpload) {
-        throw new ApiError(400, "Failed to upload video or thumbnail");
+    if (!videoData || !thumbnailData) {
+        throw new ApiError(400, "Please provide both video and thumbnail data");
     }
-
+    // 3️⃣ Create DB record directly
+    // We trust the frontend provided URLs from ImageKit
     const video = await Video.create({
-        title: title,
-        description: description,
-        thumbnail: thumbnailUpload.url,
-        videoFile: videoUpload.url,
-        duration: videoUpload.duration ?? 0,
-        views: 0,
+        title,
+        description,
+        videoFile: {
+            url: videoData.url,
+            public_id: videoData.public_id,
+        },
+        thumbnail: {
+            url: thumbnailData.url,
+            public_id: thumbnailData.public_id,
+        },
+        owner: req.user._id,
+        duration: videoData.duration || 0, // Using the duration sent from frontend
         isPublished: true,
-        user: req.user?._id,
     });
-
-    if (!video) {
-        throw new ApiError(500, "Something went wrong while creating video");
-    }
-
-    // 201 success
     return res
         .status(201)
-        .json(new ApiResponse(200, video, "Video Publish successfully"));
+        .json(new ApiResponse(201, video, "Video published successfully"));
 });
 
 const getVideoById = asyncHandler(async (req, res) => {
@@ -214,7 +289,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 export {
     getAllVideos,
-    publishAVideo,
+    publishVideo,
     getVideoById,
     updateVideo,
     deleteVideo,
