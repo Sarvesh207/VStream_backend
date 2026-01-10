@@ -70,6 +70,62 @@ const getAllVideos = asyncHandler(async (req, res) => {
     );
 });
 
+const getVideosByUser = asyncHandler(async (req, res) => {
+    const {
+        page = 1,
+        limit = 10,
+        query,
+        sortBy = "createdAt",
+        sortType = "desc",
+    } = req.query;
+
+    const pageNumber = Number(page);
+    const pageSize = Number(limit);
+
+    // 🔍 Filter object
+    const filter = {
+        isPublished: true,
+    };
+
+    const userId = req.user._id;
+
+    // Filter by user
+    if (userId) {
+        filter.owner = userId;
+    }
+
+    // 🔃 Sort object
+    const sortOptions = {
+        [sortBy]: sortType === "asc" ? 1 : -1,
+    };
+
+    // 📊 Aggregation
+    const videos = await Video.find(filter)
+        .sort(sortOptions)
+        .skip((pageNumber - 1) * pageSize)
+        .limit(pageSize)
+        .populate("owner", "username avatar")
+        .lean();
+
+    const totalVideos = await Video.countDocuments(filter);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                videos,
+                pagination: {
+                    totalVideos,
+                    currentPage: pageNumber,
+                    totalPages: Math.ceil(totalVideos / pageSize),
+                    pageSize,
+                },
+            },
+            "Videos fetched successfully"
+        )
+    );
+});
+
 // const publishVideo = asyncHandler(async (req, res) => {
 //     const { title, description } = req.body;
 
@@ -289,6 +345,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 
 export {
     getAllVideos,
+    getVideosByUser,
     publishVideo,
     getVideoById,
     updateVideo,
