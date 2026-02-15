@@ -77,15 +77,19 @@ const getVideosByUser = asyncHandler(async (req, res) => {
         query,
         sortBy = "createdAt",
         sortType = "desc",
+        publishStatus = "true", // Add this parameter
     } = req.query;
 
     const pageNumber = Number(page);
     const pageSize = Number(limit);
 
     // 🔍 Filter object
-    const filter = {
-        isPublished: true,
-    };
+    const filter = {};
+
+    // Filter by publish status
+    if (publishStatus !== "all") {
+        filter.isPublished = publishStatus === "true";
+    }
 
     const userId = req.user._id;
 
@@ -305,6 +309,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
 
     //TODO: get video by id
+    console.log("publish_VIdeo_toggle", videoId);
 
     if (!videoId) {
         throw new ApiError(400, "Video id required");
