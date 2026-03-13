@@ -257,32 +257,123 @@ const publishVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
-    //TODO: get video by id
-    console.log(req.params);
 
-    if (!videoId) {
-        throw new ApiError(400, "Video id required");
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+    if (!videoId || !isValidObjectId(videoId)) {
         throw new ApiError(400, "Invalid video id");
     }
 
-    const video = await Video.findById(videoId)
-        .populate("owner", "username avatar")
-        .lean();
+    // 1️⃣ Find the video first to check if it's published
+    const initialVideo = await Video.findById(videoId);
 
-    if (!video) {
+    if (!initialVideo) {
         throw new ApiError(404, "Video not found");
     }
 
-    if (!video.isPublished) {
+    if (
+        !initialVideo.isPublished &&
+        initialVideo.owner.toString() !== req.user?._id?.toString()
+    ) {
         throw new ApiError(403, "Video is not published");
+    }
+
+    // 2️⃣ Increment views atomically
+    await Video.findByIdAndUpdate(videoId, {
+        $inc: { views: 1 },
+    });
+
+    // 3️⃣ Update user watch history if logged in
+    if (req.user?._id) {
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $pull: { watchHistory: videoId }, // Remove if already exists to avoid duplicates
+            },
+            { new: true }
+        );
+
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $push: {
+                    watchHistory: {
+                        $each: [videoId],
+                        $position: 0, // Add to the beginning (most recent)
+                    },
+                },
+            },
+            { new: true }
+        );
+    }
+
+    // 4️⃣ Fetch enriched data with like count and user like status
+    const pipeline = [
+        {
+            $match: { _id: new mongoose.Types.ObjectId(videoId) },
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+            },
+        },
+        {
+            $unwind: "$owner",
+        },
+        {
+            $lookup: {
+                from: "likes",
+                let: { videoId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$video", "$$videoId"] },
+                        },
+                    },
+                ],
+                as: "likes",
+            },
+        },
+        {
+            $addFields: {
+                likeCount: { $size: "$likes" },
+                isLikedByMe: {
+                    $cond: {
+                        if: { $ne: [req.user?._id, null] },
+                        then: {
+                            $in: [
+                                new mongoose.Types.ObjectId(req.user._id),
+                                "$likes.likedBy",
+                            ],
+                        },
+                        else: false,
+                    },
+                },
+            },
+        },
+        {
+            $project: {
+                likes: 0, // Remove the likes array from output
+            },
+        },
+    ];
+
+    const video = await Video.aggregate(pipeline);
+
+    if (!video || video.length === 0) {
+        throw new ApiError(404, "Video not found after aggregation");
     }
 
     return res
         .status(200)
-        .json(new ApiResponse(200, video, "Video fetched successfully"));
+        .json(
+            new ApiResponse(
+                200,
+                video[0],
+                "Video fetched successfully with like data"
+            )
+        );
 });
 
 const updateVideo = asyncHandler(async (req, res) => {

@@ -8,7 +8,10 @@ import {
     togglePublishStatus,
     updateVideo,
 } from "../controllers/video.controller.js";
-import { verifyJWT } from "../middlewares/auth.middelware.js";
+import {
+    verifyJWT,
+    optionalVerifyJWT,
+} from "../middlewares/auth.middelware.js";
 import { upload } from "../middlewares/multer.middelware.js";
 
 const router = Router();
@@ -16,7 +19,7 @@ const router = Router();
 
 //public
 router.get("/", getAllVideos);
-router.get("/:videoId", getVideoById);
+router.get("/:videoId", optionalVerifyJWT, getVideoById);
 
 router.post(
     "/",
@@ -42,7 +45,7 @@ router.post(
 
 // router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 router.get("/user/videos", verifyJWT, getVideosByUser);
- 
+
 router.delete("/:videoId", verifyJWT, deleteVideo);
 
 router.patch("/:videoId", verifyJWT, upload.single("thumbnail"), updateVideo);

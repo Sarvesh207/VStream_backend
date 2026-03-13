@@ -22,4 +22,7 @@ const likeSchema = new Schema(
     { timestamps: true }
 );
 
+// Index for efficient lookups by video ID
+likeSchema.index({ video: 1 });
+
 export const Like = mongoose.model("Like", likeSchema);
