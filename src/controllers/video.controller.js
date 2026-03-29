@@ -265,14 +265,14 @@ const getVideoById = asyncHandler(async (req, res) => {
     // 1️⃣ Find the video first to check if it's published
     const initialVideo = await Video.findById(videoId);
 
+    console.log("isValidObjectId", initialVideo);
     if (!initialVideo) {
         throw new ApiError(404, "Video not found");
     }
 
-    if (
-        !initialVideo.isPublished &&
-        initialVideo.owner.toString() !== req.user?._id?.toString()
-    ) {
+    const ownerId =
+        initialVideo.owner?._id?.toString() || initialVideo.owner?.toString();
+    if (!initialVideo.isPublished && ownerId !== req.user?._id?.toString()) {
         throw new ApiError(403, "Video is not published");
     }
 
@@ -282,7 +282,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     });
 
     // 3️⃣ Update user watch history if logged in
-    if (req.user?._id) {
+    if (req?.user?._id) {
         await User.findByIdAndUpdate(
             req.user._id,
             {
@@ -338,18 +338,14 @@ const getVideoById = asyncHandler(async (req, res) => {
         {
             $addFields: {
                 likeCount: { $size: "$likes" },
-                isLikedByMe: {
-                    $cond: {
-                        if: { $ne: [req.user?._id, null] },
-                        then: {
-                            $in: [
-                                new mongoose.Types.ObjectId(req.user._id),
-                                "$likes.likedBy",
-                            ],
-                        },
-                        else: false,
-                    },
-                },
+                isLikedByMe: req.user?._id
+                    ? {
+                          $in: [
+                              new mongoose.Types.ObjectId(req.user._id),
+                              "$likes.likedBy",
+                          ],
+                      }
+                    : false,
             },
         },
         {
